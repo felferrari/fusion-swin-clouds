@@ -2,10 +2,18 @@ import argparse
 import pathlib
 from conf import default, general, paths
 import os
-from utils.ops import LoggerWriter
+from utils.ops import count_parameters
 from utils.dataloader import TrainDataSet
 import torch
 import logging, sys
+from torch.multiprocessing import Process, freeze_support
+import importlib
+from torch.utils.data import DataLoader, RandomSampler
+from torch import nn
+from utils.trainer import train_loop, val_loop, EarlyStop
+import time
+from torch.optim.lr_scheduler import ExponentialLR
+from torch.utils.tensorboard import SummaryWriter
 
 parser = argparse.ArgumentParser(
     description='Train NUMBER_MODELS models based in the same parameters'
@@ -14,7 +22,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument( # Experiment number
     '-e', '--experiment',
     type = int,
-    default = 1,
+    default = 3,
     help = 'The number of the experiment'
 )
 
@@ -88,126 +96,109 @@ results_path = os.path.join(exp_path, f'results')
 if not os.path.exists(results_path):
     os.mkdir(results_path)
 
-outfile = os.path.join(logs_path, f'train_{args.experiment}.txt')
-logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s:%(levelname)s:%(name)s:%(message)s',
-        filename=outfile,
-        filemode='w'
-        )
-log = logging.getLogger('training')
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-log.info('Loading data...')
-ds_train = TrainDataSet(year = args.year, device = device)
-
-log.info('Data loaded.')
-
-
-
-
-
-"""def run(model_idx):
+def run(model_idx):
     outfile = os.path.join(logs_path, f'train_{args.experiment}_{model_idx}.txt')
-    #summary_writer = SummaryWriter(log_dir=logs_path)
-    with open(outfile, 'w') as sys.stdout:
-
-        model_m =importlib.import_module(f'conf.exp_{args.experiment}')
-        model = model_m.get_model()
-
-        print(f'Model: {model.__class__.__name__}')
-        
-        #path_to_patches_train = os.path.join(paths.PREPARED_PATH, 'train_patches.npy')
-        #path_to_patches_val = os.path.join(paths.PREPARED_PATH, 'val_patches.npy')
-
-        ds_train = TrainDataSet(ds = 'train', year = default.YEARS[1], device = device)
-        ds_val = TrainDataSet(ds = 'val', year = default.YEARS[1], device = device)
-
-        if args.number_train_samples > 0:
-            train_sampler = RandomSampler(ds_train, num_samples=args.number_train_samples)
-        else:
-            train_sampler = None
-        if args.number_val_samples > 0:
-            val_sampler = RandomSampler(ds_val, num_samples=args.number_val_samples)
-        else:
-            val_sampler = None
-
-
-        dataloader_train = DataLoader(ds_train, batch_size=args.batch_size, shuffle = (train_sampler is None), sampler=train_sampler, num_workers=1, persistent_workers =True )
-        dataloader_val = DataLoader(ds_val, batch_size=args.batch_size, sampler = val_sampler)
-
-        model.to(device)
-
-        print(f'Model trainable parameters: {count_parameters(model):,}')
-
-        torch.set_num_threads(11)
-
-        loss_fn = nn.CrossEntropyLoss(ignore_index=2, weight=torch.tensor(general.CLASSES_WEIGHTS).to(device))
-       # loss_fn = nn.CrossEntropyLoss(weight=torch.tensor(general.CLASSES_WEIGHTS).to(device))
-        #loss_fn = nn.BCELoss()
-
-        optimizer = torch.optim.Adam(model.parameters(), lr=general.LEARNING_RATE)
-        model_path = os.path.join(models_path, f'model_{model_idx}.pth')
-        early_stop = EarlyStop(
-            train_patience=general.EARLY_STOP_PATIENCE,
-            path_to_save = model_path,
-            min_delta = general.EARLY_STOP_MIN_DELTA,
-            min_epochs = general.EARLY_STOP_MIN_EPOCHS
+    logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s:%(levelname)s:%(name)s:%(message)s',
+            filename=outfile,
+            filemode='w'
             )
+    log = logging.getLogger('training')
 
-        t0 = time.perf_counter()
-        
-        print(f'Model: {model}')
-        print(f'Train batch size: {args.batch_size}')
-        print(f'Loss fn: {loss_fn}')
-        print(f'Classes Weights :{general.CLASSES_WEIGHTS}')
-        print(f'Optmizer :{optimizer}')
-        print(f'Train samples: {args.number_train_samples}')
-        print(f'Val samples: {args.number_val_samples}')
-        print(f'Paticence :{general.EARLY_STOP_PATIENCE}')
-        print(f'Early Stop Min Delta :{general.EARLY_STOP_MIN_DELTA}')
-        print(f'Early Stop Min Epochs :{general.EARLY_STOP_MIN_EPOCHS}')
-        print(f'Scheduler Gamma :{general.LEARNING_RATE_SCHEDULER_GAMMA}')
-        #print(f'LR Milestones :{general.LEARNING_RATE_SCHEDULER_MILESTONES}')
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        '''scheduler = MultiStepLR(
-            optimizer, 
-            milestones = general.LEARNING_RATE_SCHEDULER_MILESTONES,
-            gamma=general.LEARNING_RATE_SCHEDULER_GAMMA,
-            verbose = True
-            )'''
-        scheduler = ExponentialLR(
-            optimizer, 
-            gamma=general.LEARNING_RATE_SCHEDULER_GAMMA,
-            verbose = True
-            )
-        train_tb_logdir_path = os.path.join(logs_path, f'train_model_{model_idx}')
-        val_tb_logdir_path = os.path.join(logs_path, f'val_model_{model_idx}')
-        #if not os.path.exists(tb_logdir_path):
-        #    os.mkdir(tb_logdir_path)
-        train_writer = SummaryWriter(log_dir=train_tb_logdir_path)
-        val_writer = SummaryWriter(log_dir=val_tb_logdir_path)
-        for t in range(general.MAX_EPOCHS):
-            epoch = t+1
-            print(f"-------------------------------\nEpoch {epoch}")
-            model.train()
-            loss, f1 = train_loop(dataloader_train, model, loss_fn, optimizer)
-            train_writer.add_scalar('Loss', loss, t)
-            train_writer.add_scalar('F1Score', f1, t)
-            #summary_writer.add_scalar('Loss/Train', loss)
-            #summary_writer.add_scalar('F1Score/Train', f1)
-            model.eval()
-            val_loss, val_f1 = val_loop(dataloader_val, model, loss_fn)
-            val_writer.add_scalar('Loss', val_loss, t)
-            val_writer.add_scalar('F1Score', val_f1, t)
-            #summary_writer.add_scalar('Loss/Validation', loss)
-            #summary_writer.add_scalar('F1Score/Validation', f1)
-            #val_sample_image(dataloader_val, model, visual_path, t)
-            if early_stop.testEpoch(model = model, val_value = val_loss):
-                break
-            scheduler.step()
-        print(f'Training time: {(time.perf_counter() - t0)/60} mins')
+    model_m =importlib.import_module(f'conf.exp_{args.experiment}')
+    model = model_m.get_model(log) 
+
+
+    log.info('Loading data...')
+    ds_train = TrainDataSet(ds_prefix = general.TRAIN_PREFIX, year = args.year, device = device)
+    ds_val = TrainDataSet(ds_prefix = general.VAL_PREFIX, year = args.year, device = device)
+
+    if args.number_train_samples > 0:
+        train_sampler = RandomSampler(ds_train, num_samples=args.number_train_samples)
+    else:
+        train_sampler = None
+    if args.number_val_samples > 0:
+        val_sampler = RandomSampler(ds_val, num_samples=args.number_val_samples)
+    else:
+        val_sampler = None
+
+    dataloader_train = DataLoader(ds_train, batch_size=args.batch_size, shuffle = (train_sampler is None), sampler=train_sampler, num_workers=1, persistent_workers =True )
+    dataloader_val = DataLoader(ds_val, batch_size=args.batch_size, sampler = val_sampler)
+
+    log.info('Data loaded.')
+
+    model.to(device)
+
+    log.info(f'Model trainable parameters: {count_parameters(model):,}')
+
+    torch.set_num_threads(11)
+
+    loss_fn = nn.CrossEntropyLoss(ignore_index=2, weight=torch.tensor(general.CLASSES_WEIGHTS).to(device))
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=general.LEARNING_RATE)
+    model_path = os.path.join(models_path, f'model_{model_idx}.pth')
+    early_stop = EarlyStop(
+        train_patience=general.EARLY_STOP_PATIENCE,
+        path_to_save = model_path,
+        min_delta = general.EARLY_STOP_MIN_DELTA,
+        min_epochs = general.EARLY_STOP_MIN_EPOCHS
+        )
+
+    t0 = time.perf_counter()
+    
+    log.info(f'Model: {model}')
+    log.info(f'Train batch size: {args.batch_size}')
+    log.info(f'Loss fn: {loss_fn}')
+    log.info(f'Classes Weights :{general.CLASSES_WEIGHTS}')
+    log.info(f'Optmizer :{optimizer}')
+    log.info(f'Train samples: {args.number_train_samples}')
+    log.info(f'Val samples: {args.number_val_samples}')
+    log.info(f'Paticence :{general.EARLY_STOP_PATIENCE}')
+    log.info(f'Early Stop Min Delta :{general.EARLY_STOP_MIN_DELTA}')
+    log.info(f'Early Stop Min Epochs :{general.EARLY_STOP_MIN_EPOCHS}')
+    log.info(f'Scheduler Gamma :{general.LEARNING_RATE_SCHEDULER_GAMMA}')
+    #log.info(f'LR Milestones :{general.LEARNING_RATE_SCHEDULER_MILESTONES}')
+
+    '''scheduler = MultiStepLR(
+        optimizer, 
+        milestones = general.LEARNING_RATE_SCHEDULER_MILESTONES,
+        gamma=general.LEARNING_RATE_SCHEDULER_GAMMA,
+        verbose = True
+        )'''
+    scheduler = ExponentialLR(
+        optimizer, 
+        gamma=general.LEARNING_RATE_SCHEDULER_GAMMA,
+        verbose = True
+        )
+    train_tb_logdir_path = os.path.join(logs_path, f'train_model_{model_idx}')
+    val_tb_logdir_path = os.path.join(logs_path, f'val_model_{model_idx}')
+    #if not os.path.exists(tb_logdir_path):
+    #    os.mkdir(tb_logdir_path)
+    train_writer = SummaryWriter(log_dir=train_tb_logdir_path)
+    val_writer = SummaryWriter(log_dir=val_tb_logdir_path)
+    for t in range(general.MAX_EPOCHS):
+        epoch = t+1
+        print(f"-------------------------------\nEpoch {epoch}")
+        model.train()
+        loss, f1 = train_loop(dataloader_train, model, loss_fn, optimizer)
+        train_writer.add_scalar('Loss', loss, t)
+        train_writer.add_scalar('F1Score', f1, t)
+        #summary_writer.add_scalar('Loss/Train', loss)
+        #summary_writer.add_scalar('F1Score/Train', f1)
+        model.eval()
+        val_loss, val_f1 = val_loop(dataloader_val, model, loss_fn)
+        val_writer.add_scalar('Loss', val_loss, t)
+        val_writer.add_scalar('F1Score', val_f1, t)
+        #summary_writer.add_scalar('Loss/Validation', loss)
+        #summary_writer.add_scalar('F1Score/Validation', f1)
+        #val_sample_image(dataloader_val, model, visual_path, t)
+        if early_stop.testEpoch(model = model, val_value = val_loss):
+            break
+        scheduler.step()
+    log.info(f'Training time: {(time.perf_counter() - t0)/60} mins')
 
 if __name__=="__main__":
     freeze_support()
@@ -215,4 +206,5 @@ if __name__=="__main__":
     for model_idx in range(args.number_models):
         p = Process(target=run, args=(model_idx,))
         p.start()
-        p.join()"""
+        p.join()
+

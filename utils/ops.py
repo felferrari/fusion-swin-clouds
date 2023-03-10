@@ -115,7 +115,7 @@ def load_exp(exp_n = None):
         return load_json(os.path.join('conf', 'exps', f'exp_{exp_n}.json'))
     
 
-class LoggerWriter:
+"""class LoggerWriter:
     def __init__(self, level):
         # self.level is really like using log.debug(message)
         # at least in my case
@@ -132,7 +132,7 @@ class LoggerWriter:
         # the system wants to. Not sure if simply 'printing'
         # sys.stderr is the correct way to do it, but it seemed
         # to work properly for me.
-        self.level(sys.stderr)
+        self.level(sys.stderr)"""
 
 def save_geotiff(base_image_path, dest_path, data, dtype):
     """Save data array as geotiff.
@@ -175,3 +175,12 @@ def save_geotiff(base_image_path, dest_path, data, dtype):
         for band_i in range(1, data.shape[-1]+1):
             target_ds.GetRasterBand(band_i).WriteArray(data[:,:,band_i-1])
     target_ds = None
+
+def count_parameters(model):
+    """Count the number of model parameters
+    Args:
+        model (Module): Model
+    Returns:
+        int: Number of Model's parameters
+    """
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)

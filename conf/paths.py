@@ -6,6 +6,7 @@ SAR_PATH = os.path.join('D:','Ferrari','Projects','trans_fusion','site1','sar')
 PREPARED_PATH = 'prepared'
 PREPARED_OPT_PATH = os.path.join(PREPARED_PATH, 'opt')
 PREPARED_SAR_PATH = os.path.join(PREPARED_PATH, 'sar')
+PREPARED_GENERAL_PATH = os.path.join(PREPARED_PATH, 'general')
 
 EXPERIMENTS_PATH = os.path.join('D:', 'Ferrari', 'Projects', 'trans_fusion', 'site1', 'exps')
 
