@@ -14,6 +14,7 @@ from osgeo import ogr, gdal, gdalconst
 from utils.ops import save_geotiff, load_sb_image
 from multiprocessing import Process
 from skimage.morphology import area_opening
+import pandas as pd
 
 
 parser = argparse.ArgumentParser(
@@ -55,6 +56,13 @@ parser.add_argument( # Base image to generate geotiff pred
     help = 'The patch to base image to generate Geotiff prediction'
 )
 
+parser.add_argument( # Base image to generate geotiff pred
+    '-c', '--cloud-max-map',
+    type = bool,
+    action=argparse.BooleanOptionalAction,
+    help = 'Generate the Max Cloud Map Geotiff'
+)
+
 args = parser.parse_args()
 
 exp_path = os.path.join(str(args.experiments_path), f'exp_{args.experiment}')
@@ -89,6 +97,7 @@ with open(outfile, 'w') as sys.stdout:
 
             pred_b = np.zeros_like(label, dtype=np.uint8)
             pred_b[average_pred_prob > 0.5] = 1
+            pred_b[label==2] = 0
             pred_red = area_opening(pred_b, 625)
 
             pred_clean = pred_b
@@ -144,6 +153,10 @@ with open(outfile, 'w') as sys.stdout:
             cmap_1 = load_sb_image(os.path.join(paths.GENERAL_PATH, f'{general.CMAP_PREFIX}_{opt_file_1[:-4]}.tif'))
 
             max_cmap = np.maximum(cmap_0, cmap_1)
+            mcp_map = max_cmap>=general.MIN_CLOUD_COVER
+            mcp_map = mcp_map.astype(np.uint8)
+            if args.cloud_max_map:
+                save_geotiff(base_data, os.path.join(visual_path, f'mcp_map_{args.experiment}_{im_0}_{im_1}.tif'), mcp_map, dtype = 'byte')
             max_cmap = max_cmap.flatten()[keep_samples]
 
             cloud_args = max_cmap >= general.MIN_CLOUD_COVER
@@ -210,3 +223,35 @@ with open(outfile, 'w') as sys.stdout:
 
     print(f'No Cloud Results, Pecision: {no_cloud_precision:.6f}, Recall: {no_cloud_recall:.6f}, F1-Score: {no_cloud_f1:.6f}')
     print(f'No Cloud Results, {nc_tps:,}|{nc_tns:,}|{nc_fps:,}|{nc_fns:,}')
+
+    with pd.ExcelWriter(os.path.join(logs_path, f'results_{args.experiment}.xlsx')) as writer:  
+        df = pd.DataFrame({
+            'nc prec': [no_cloud_precision],
+            'nc recall': [no_cloud_recall],
+            'nc f1': [no_cloud_f1],
+            'nc tps': [nc_tps],
+            'nc tns': [nc_tns],
+            'nc fps': [nc_fps],
+            'nc fns': [nc_fns],
+
+            'c prec': [cloud_precision],
+            'c recall': [cloud_recall],
+            'c f1': [cloud_f1],
+            'c tps': [c_tps],
+            'c tns': [c_tns],
+            'c fps': [c_fps],
+            'c fns': [c_fns],
+
+            'global prec': [precision],
+            'global recall': [recall],
+            'global f1': [f1],
+            'global tps': [tps],
+            'global tns': [tns],
+            'global fps': [fps],
+            'global fns': [fns]
+        })
+
+        df.to_excel(writer, sheet_name='results')
+
+
+

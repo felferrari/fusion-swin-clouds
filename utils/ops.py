@@ -176,7 +176,7 @@ def save_geotiff(base_image_path, dest_path, data, dtype):
             target_ds.GetRasterBand(band_i).WriteArray(data[:,:,band_i-1])
     target_ds = None
 
-def count_parameters(model):
+def count_parameters_old(model):
     """Count the number of model parameters
     Args:
         model (Module): Model
@@ -184,3 +184,14 @@ def count_parameters(model):
         int: Number of Model's parameters
     """
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+def count_parameters(model):
+    total_params = 0
+    text = ''
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad: continue
+        params = parameter.numel()
+        total_params+=params
+        text += f'{name}: {params:,}\n'
+    text+=f'Total: {total_params:,}\n'
+    return text

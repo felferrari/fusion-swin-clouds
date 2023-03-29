@@ -22,7 +22,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument( # Experiment number
     '-e', '--experiment',
     type = int,
-    default = 3,
+    default = 14,
     help = 'The number of the experiment'
 )
 
@@ -110,6 +110,13 @@ def run(model_idx):
 
     model_m =importlib.import_module(f'conf.exp_{args.experiment}')
     model = model_m.get_model(log) 
+    '''model((
+        torch.rand(size = (32, 13, 128, 128)),
+        torch.rand(size = (32, 13, 128, 128)),
+        torch.rand(size = (32, 2, 128, 128)),
+        torch.rand(size = (32, 2, 128, 128)),
+        torch.rand(size = (32, 1, 128, 128))
+        ))'''
 
 
     log.info('Loading data...')
@@ -131,8 +138,7 @@ def run(model_idx):
     log.info('Data loaded.')
 
     model.to(device)
-
-    log.info(f'Model trainable parameters: {count_parameters(model):,}')
+    log.info(f'Model trainable parameters: {count_parameters(model)}')
 
     torch.set_num_threads(11)
 
@@ -198,7 +204,8 @@ def run(model_idx):
         if early_stop.testEpoch(model = model, val_value = val_loss):
             break
         scheduler.step()
-    log.info(f'Training time: {(time.perf_counter() - t0)/60} mins')
+    t_time = (time.perf_counter() - t0)/60
+    log.info(f'Training time: {t_time} mins, for {t} epochs, Avg Training Time per epoch:{t_time/t}')
 
 if __name__=="__main__":
     freeze_support()
