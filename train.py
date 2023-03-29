@@ -68,7 +68,12 @@ parser.add_argument( # Number of validation samples per epoch
     help = 'The number of samples of each validation epoch'
 )
 
-
+parser.add_argument( # Numbe of threads 
+    '-r', '--threads',
+    type = int,
+    default = default.N_THREADS,
+    help = "Number of threads"
+)
 
 args = parser.parse_args()
 
@@ -110,14 +115,6 @@ def run(model_idx):
 
     model_m =importlib.import_module(f'conf.exp_{args.experiment}')
     model = model_m.get_model(log) 
-    '''model((
-        torch.rand(size = (32, 13, 128, 128)),
-        torch.rand(size = (32, 13, 128, 128)),
-        torch.rand(size = (32, 2, 128, 128)),
-        torch.rand(size = (32, 2, 128, 128)),
-        torch.rand(size = (32, 1, 128, 128))
-        ))'''
-
 
     log.info('Loading data...')
     ds_train = TrainDataSet(ds_prefix = general.TRAIN_PREFIX, year = args.year, device = device)
@@ -140,7 +137,7 @@ def run(model_idx):
     model.to(device)
     log.info(f'Model trainable parameters: {count_parameters(model)}')
 
-    torch.set_num_threads(11)
+    torch.set_num_threads(args.threads)
 
     loss_fn = nn.CrossEntropyLoss(ignore_index=2, weight=torch.tensor(general.CLASSES_WEIGHTS).to(device))
 
