@@ -10,15 +10,15 @@ class ResUnetOpt(nn.Module):
         self.classifier = ResUnetClassifier(depths[0], n_classes)
 
     def forward(self, x):
-        x = torch.cat((x[0], x[1], x[4]), dim=1)
+        x = torch.cat((x[1], x[4]), dim=1)
 
         x = self.encoder(x)
         x = self.decoder(x)
         x = self.classifier(x)
 
         return x
+
     
-   
 class ResUnetSAR(nn.Module):
     def __init__(self, input_depth, depths, n_classes):
         super(ResUnetSAR, self).__init__()
@@ -27,7 +27,7 @@ class ResUnetSAR(nn.Module):
         self.classifier = ResUnetClassifier(depths[0], n_classes)
 
     def forward(self, x):
-        x = torch.cat((x[2], x[3], x[4]), dim=1)
+        x = torch.cat((x[3], x[4]), dim=1)
 
         x = self.encoder(x)
         x = self.decoder(x)
@@ -35,7 +35,6 @@ class ResUnetSAR(nn.Module):
 
         return x
     
-
     
 class ResUnetEF(nn.Module):
     def __init__(self, input_depth, depths, n_classes):
@@ -45,7 +44,7 @@ class ResUnetEF(nn.Module):
         self.classifier = ResUnetClassifier(depths[0], n_classes)
 
     def forward(self, x):
-        x = torch.cat((x[0], x[1], x[2], x[3], x[4]), dim=1)
+        x = torch.cat((x[1], x[3], x[4]), dim=1)
 
         x = self.encoder(x)
         x = self.decoder(x)
@@ -63,8 +62,8 @@ class ResUnetJF(nn.Module):
 
 
     def forward(self, x):
-        x_0 = torch.cat((x[0], x[1], x[4]), dim=1)
-        x_1 = torch.cat((x[2], x[3], x[4]), dim=1)
+        x_0 = torch.cat((x[1], x[4]), dim=1)
+        x_1 = torch.cat((x[3], x[4]), dim=1)
 
         x_0 = self.encoder_0(x_0)
         x_1 = self.encoder_1(x_1)
@@ -88,8 +87,8 @@ class ResUnetJFNoSkip(nn.Module):
 
 
     def forward(self, x):
-        x_0 = torch.cat((x[0], x[1], x[4]), dim=1)
-        x_1 = torch.cat((x[2], x[3], x[4]), dim=1)
+        x_0 = torch.cat((x[1], x[4]), dim=1)
+        x_1 = torch.cat((x[3], x[4]), dim=1)
 
         x_0 = self.encoder_0(x_0)
         x_1 = self.encoder_1(x_1)
@@ -110,8 +109,8 @@ class ResUnetLF(nn.Module):
         self.classifier = ResUnetClassifier(2*depths[0], n_classes)
 
     def forward(self, x):
-        x_0 = torch.cat((x[0], x[1], x[4]), dim=1)
-        x_1 = torch.cat((x[2], x[3], x[4]), dim=1)
+        x_0 = torch.cat((x[1], x[4]), dim=1)
+        x_1 = torch.cat((x[3], x[4]), dim=1)
 
         x_0 = self.encoder_0(x_0)
         x_1 = self.encoder_1(x_1)
